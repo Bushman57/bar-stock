@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireClerk } from "@/lib/auth/api-auth";
+import { requireClerkOrAdmin } from "@/lib/auth/api-auth";
 import {
   appendTransactions,
   applyClosingStockBatch,
   getInventoryItems,
 } from "@/lib/sheets";
-import { validateClosingStock } from "@/lib/stock";
+import { itemsMissingRequiredClosing, requiredClosingError, validateClosingStock } from "@/lib/stock";
 import type { InventoryItem, Transaction } from "@/lib/types";
 
 type CloseBatchEntry = {
@@ -22,7 +22,7 @@ type CloseBatchResultRow = {
 
 export async function POST(request: Request) {
   try {
-    const { email, uid } = await requireClerk(request);
+    const { email, uid } = await requireClerkOrAdmin(request);
     const body = (await request.json()) as { entries?: CloseBatchEntry[] };
     const entries = body.entries;
 
@@ -87,6 +87,19 @@ export async function POST(request: Request) {
     if (errors.length) {
       return NextResponse.json(
         { error: errors[0], errors },
+        { status: 400 }
+      );
+    }
+
+    const missing = itemsMissingRequiredClosing(
+      items,
+      new Set(prepared.map((row) => row.item.itemId))
+    );
+    if (missing.length) {
+      return NextResponse.json(
+        {
+          error: requiredClosingError(missing.map((item) => item.itemName)),
+        },
         { status: 400 }
       );
     }

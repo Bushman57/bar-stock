@@ -1,5 +1,20 @@
 import type { InventoryItem } from "./types";
 
+/** Items that still had stock must get a new closing count. */
+export function itemsMissingRequiredClosing(
+  items: InventoryItem[],
+  filledItemIds: ReadonlySet<string>
+): InventoryItem[] {
+  return items.filter(
+    (item) => item.closingStock > 0 && !filledItemIds.has(item.itemId)
+  );
+}
+
+export function requiredClosingError(itemNames: string[]): string {
+  const listed = itemNames.join(", ");
+  return `Enter closing stock for items that still had stock: ${listed}. Their previous closing is above zero.`;
+}
+
 /** Period on-hand before closing count: Opening + ADD. */
 export function calculateTotalStock(
   openingStock: number,

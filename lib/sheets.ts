@@ -98,10 +98,10 @@ function rowToItem(row: string[], rowIndex: number): InventoryItem | null {
   const itemName = row[1]?.trim();
   if (!itemId || !itemName) return null;
 
-  const openingStock = parseSheetNumber(row[4]);
-  const stockIn = parseSheetNumber(row[5]);
-  const sales = parseSheetNumber(row[6]);
-  const closingFromSheet = parseOptionalNumber(row[7]);
+  const openingStock = parseSheetNumber(row[5]);
+  const stockIn = parseSheetNumber(row[6]);
+  const sales = parseSheetNumber(row[7]);
+  const closingFromSheet = parseOptionalNumber(row[8]);
   const closingStock =
     closingFromSheet ?? calculateTotalStock(openingStock, stockIn);
 
@@ -109,14 +109,14 @@ function rowToItem(row: string[], rowIndex: number): InventoryItem | null {
     rowIndex,
     itemId,
     itemName,
-    category: row[2]?.trim() ?? "",
+    category: row[4]?.trim() || row[2]?.trim() || "",
     unit: row[3]?.trim() ?? "",
     openingStock,
     stockIn,
     sales,
     closingStock,
-    reorderLevel: parseOptionalNumber(row[8]),
-    notes: row[9]?.trim() ?? "",
+    reorderLevel: parseOptionalNumber(row[9]),
+    notes: "",
     price: parseSheetNumber(row[10]),
     buyingPrice: parseSheetNumber(row[11]),
   };
@@ -126,14 +126,14 @@ function itemToRowValues(item: Omit<InventoryItem, "rowIndex">): (string | numbe
   return [
     item.itemId,
     item.itemName,
-    item.category,
+    "",
     item.unit,
+    item.category,
     item.openingStock,
     item.stockIn,
     item.sales,
     item.closingStock,
     item.reorderLevel ?? "",
-    item.notes,
     item.price,
     item.buyingPrice,
   ];
@@ -410,7 +410,7 @@ export async function updateStockIn(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${INVENTORY_SHEET}!F${item.rowIndex}:H${item.rowIndex}`,
+    range: `${INVENTORY_SHEET}!G${item.rowIndex}:I${item.rowIndex}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[stockIn, item.sales, closingStock]],
@@ -422,6 +422,41 @@ export async function updateStockIn(
     stockIn,
     closingStock,
   };
+}
+
+/**
+ * Add stock-in quantities for many items in one Sheets values.batchUpdate.
+ * Updates ADD (F) and Closing (H); Sales (G) is unchanged.
+ */
+export async function applyStockInBatch(
+  entries: Array<{ item: InventoryItem; quantity: number }>
+): Promise<InventoryItem[]> {
+  if (!entries.length) return [];
+
+  const sheets = getSheetsClient();
+  const spreadsheetId = getSpreadsheetId();
+
+  const nextItems = entries.map(({ item, quantity }) => {
+    const stockIn = item.stockIn + quantity;
+    return {
+      ...item,
+      stockIn,
+      closingStock: calculateTotalStock(item.openingStock, stockIn),
+    };
+  });
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: nextItems.map((item) => ({
+        range: `${INVENTORY_SHEET}!G${item.rowIndex}:I${item.rowIndex}`,
+        values: [[item.stockIn, item.sales, item.closingStock]],
+      })),
+    },
+  });
+
+  return nextItems;
 }
 
 /**
@@ -450,7 +485,7 @@ export async function applyClosingStock(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${INVENTORY_SHEET}!E${item.rowIndex}:H${item.rowIndex}`,
+    range: `${INVENTORY_SHEET}!F${item.rowIndex}:I${item.rowIndex}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -550,7 +585,7 @@ export async function applyClosingStockBatch(
     requestBody: {
       valueInputOption: "RAW",
       data: results.map(({ item }) => ({
-        range: `${INVENTORY_SHEET}!E${item.rowIndex}:H${item.rowIndex}`,
+        range: `${INVENTORY_SHEET}!F${item.rowIndex}:I${item.rowIndex}`,
         values: [
           [item.openingStock, item.stockIn, item.sales, item.closingStock],
         ],
@@ -964,7 +999,7 @@ export async function applySalesAdjustment(
   const sheets = getSheetsClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSpreadsheetId(),
-    range: `${INVENTORY_SHEET}!E${item.rowIndex}:H${item.rowIndex}`,
+    range: `${INVENTORY_SHEET}!F${item.rowIndex}:I${item.rowIndex}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -1043,7 +1078,7 @@ export async function applyStockSet(
   const sheets = getSheetsClient();
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSpreadsheetId(),
-    range: `${INVENTORY_SHEET}!E${item.rowIndex}:H${item.rowIndex}`,
+    range: `${INVENTORY_SHEET}!F${item.rowIndex}:I${item.rowIndex}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [

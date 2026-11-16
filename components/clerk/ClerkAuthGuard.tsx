@@ -24,7 +24,10 @@ export function ClerkAuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (!isUidAllowed(user.uid, "clerk")) {
+    const isClerk = isUidAllowed(user.uid, "clerk");
+    const isAdmin = isUidAllowed(user.uid, "admin");
+
+    if (!isClerk && !isAdmin) {
       setPortalOk(null);
       signOutFirebase().finally(() => router.replace("/clerk/login?error=access"));
       return;
@@ -33,20 +36,23 @@ export function ClerkAuthGuard({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     setPortalOk(null);
 
-    fetchPortalStatus("clerk")
-      .then((ok) => {
-        if (cancelled) {
-          return;
-        }
+    const checks: Promise<boolean>[] = [];
+    if (isClerk) checks.push(fetchPortalStatus("clerk"));
+    if (isAdmin) checks.push(fetchPortalStatus("admin"));
+
+    Promise.all(checks)
+      .then((results) => {
+        if (cancelled) return;
+        const ok = results.some(Boolean);
         setPortalOk(ok);
         if (!ok) {
-          router.replace("/clerk/login");
+          router.replace(isAdmin && !isClerk ? "/admin/login" : "/clerk/login");
         }
       })
       .catch(() => {
         if (!cancelled) {
           setPortalOk(false);
-          router.replace("/clerk/login");
+          router.replace(isAdmin && !isClerk ? "/admin/login" : "/clerk/login");
         }
       });
 
@@ -56,7 +62,10 @@ export function ClerkAuthGuard({ children }: { children: React.ReactNode }) {
   }, [user, loading, router]);
 
   const allowed =
-    !loading && !!user && isUidAllowed(user.uid, "clerk") && portalOk === true;
+    !loading &&
+    !!user &&
+    (isUidAllowed(user.uid, "clerk") || isUidAllowed(user.uid, "admin")) &&
+    portalOk === true;
 
   if (loading || portalOk === null) {
     return <LoadingState label="Checking staff access" layout="centered" />;

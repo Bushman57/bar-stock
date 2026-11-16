@@ -13,6 +13,7 @@ const links = [
   { href: "/admin/corrections", label: "Corrections" },
   { href: "/admin/items", label: "Items" },
   { href: "/admin/alerts", label: "Alerts" },
+  { href: "/clerk/closing-stock", label: "Staff" },
 ];
 
 export function AdminNav() {

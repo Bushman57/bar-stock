@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearAlertIfRecovered, sendLowStockAlert } from "@/lib/alerts";
-import { requireClerk } from "@/lib/auth/api-auth";
+import { requireClerkOrAdmin } from "@/lib/auth/api-auth";
 import {
   appendTransaction,
   applyClosingStock,
@@ -12,7 +12,7 @@ import type { StockMovementRequest } from "@/lib/types";
 
 export async function POST(request: Request) {
   try {
-    const { email, uid } = await requireClerk(request);
+    const { email, uid } = await requireClerkOrAdmin(request);
     const body = (await request.json()) as StockMovementRequest;
 
     if (!body.itemId || !body.type) {

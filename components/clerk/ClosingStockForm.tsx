@@ -23,7 +23,7 @@ import {
   type ClosingDraftMap,
 } from "@/lib/closing-draft-storage";
 import { todayDateKey } from "@/lib/dates";
-import { calculateSales, calculateTotalStock } from "@/lib/stock";
+import { calculateSales, calculateTotalStock, itemsMissingRequiredClosing, requiredClosingError } from "@/lib/stock";
 import { formatNumber } from "@/lib/utils";
 import type { InventoryItem } from "@/lib/types";
 
@@ -36,6 +36,7 @@ export function ClosingStockForm() {
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [restoredFromCache, setRestoredFromCache] = useState(false);
   const [online, setOnline] = useState(true);
+  const [formError, setFormError] = useState<string | null>(null);
   const draftsRef = useRef(drafts);
   const submittingRef = useRef(false);
 
@@ -133,7 +134,7 @@ export function ClosingStockForm() {
   const syncPending = useCallback(async () => {
     if (submittingRef.current) return;
     if (!navigator.onLine) {
-      toast.error("You’re offline. Counts are saved on this phone — sync when connected.");
+      setFormError("You’re offline. Counts are saved on this phone — sync when connected.");
       return;
     }
 
@@ -150,14 +151,23 @@ export function ClosingStockForm() {
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
+    const missing = itemsMissingRequiredClosing(
+      items,
+      new Set(entries.map((entry) => entry.item.itemId))
+    );
+    if (missing.length) {
+      setFormError(requiredClosingError(missing.map((item) => item.itemName)));
+      return;
+    }
+
     if (!entries.length) {
-      toast.error("Enter closing stock for at least one item.");
+      setFormError("Enter closing stock for at least one item.");
       return;
     }
 
     for (const entry of entries) {
       if (entry.closing > entry.total) {
-        toast.error(
+        setFormError(
           `${entry.item.itemName}: closing (${entry.closing}) exceeds total (${entry.total}).`
         );
         return;
@@ -194,10 +204,11 @@ export function ClosingStockForm() {
       toast.success(
         `Closing stock saved for ${result.count} item${result.count === 1 ? "" : "s"}. Period rolled.`
       );
+      setFormError(null);
       setRestoredFromCache(false);
     } catch (error) {
       saveClosingDraft(draftsRef.current);
-      toast.error(
+      setFormError(
         error instanceof Error
           ? error.message
           : "Closing stock sync failed. Counts are still cached on this phone."
@@ -265,6 +276,24 @@ export function ClosingStockForm() {
           >
             {statusParts.join(" · ")}
           </div>
+
+          {formError && (
+            <div
+              role="alert"
+              className="flex items-start justify-between gap-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900"
+            >
+              <p>{formError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setFormError(null)}
+              >
+                Close
+              </Button>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="closing-search">Search items</Label>

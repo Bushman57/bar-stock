@@ -97,6 +97,42 @@ export async function submitClosingStockBatch(
   }
 }
 
+/** Record many stock-in quantities in one server request. */
+export async function submitStockInBatch(payload: {
+  entries: Array<{ itemId: string; quantity: number }>;
+  notes?: string;
+}) {
+  const headers = await getFirebaseAuthHeader();
+  let attempt = 0;
+  const maxAttempts = 4;
+
+  while (true) {
+    attempt += 1;
+    const response = await fetch("/api/stock/in-batch", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      return data as { count: number; items: InventoryItem[] };
+    }
+
+    const message = data.error ?? "Failed to save stock in batch";
+    const retryable =
+      response.status === 429 ||
+      /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(String(message));
+
+    if (!retryable || attempt >= maxAttempts) {
+      throw new Error(message);
+    }
+
+    const delayMs = Math.min(8000, 1000 * 2 ** (attempt - 1));
+    await sleep(delayMs);
+  }
+}
+
 export async function fetchDailyStock(date?: string): Promise<{
   date: string;
   items: DailyStockItem[];

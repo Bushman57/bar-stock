@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import {
   buildDashboardStats,
+  buildPeriodAnalytics,
   dailyMovementTotals,
   filterTransactionsByDays,
-  groupStockByCategory,
+  recentStockInDays,
   itemMovementTotals,
   topConsumedItems,
   userActivityByDay,
@@ -24,13 +25,19 @@ export async function GET(request: Request) {
     ]);
 
     const filtered = filterTransactionsByDays(transactions, days);
+    const period = buildPeriodAnalytics(items, filtered);
 
     return NextResponse.json({
       stats: buildDashboardStats(items, transactions),
       lowStockItems: items.filter(isLowStock),
-      categoryStock: groupStockByCategory(items),
+      categoryProfit: period.categoryProfit,
       topConsumed: topConsumedItems(filtered),
       dailyMovement: dailyMovementTotals(filtered),
+      recentStockIn: recentStockInDays(transactions),
+      dailyProfit: period.dailyProfit,
+      deadStock: period.deadStock,
+      topItems: period.topItems,
+      summary: period.summary,
       itemMovement: itemMovementTotals(filtered),
       userActivity: userActivityByDay(filtered, days),
       transactions: filtered,

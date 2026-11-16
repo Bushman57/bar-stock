@@ -8,7 +8,7 @@ import { UserActivityChart } from "@/components/admin/UserActivityChart";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading-state";
 import { fetchAnalytics } from "@/lib/api-client";
-import type { UserActivitySeries } from "@/lib/analytics";
+import type { AnalyticsSummary, CategoryProfitRow, DeadStockRow, StockInDay, TopItemRow, UserActivitySeries } from "@/lib/analytics";
 import { getFirebaseAuthHeader } from "@/lib/auth/use-firebase-auth";
 import { todayDateKey } from "@/lib/dates";
 
@@ -24,8 +24,11 @@ export function AnalyticsPageClient() {
   const [selectedDate, setSelectedDate] = useState(() => todayDateKey());
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
-    categoryStock: Array<{ category: string; stock: number }>;
-    topConsumed: Array<{ itemId: string; itemName: string; quantity: number }>;
+    summary: AnalyticsSummary;
+    categoryProfit: CategoryProfitRow[];
+    recentStockIn: StockInDay[];
+    deadStock: DeadStockRow[];
+    topItems: TopItemRow[];
     userActivity: UserActivitySeries;
   } | null>(null);
 
@@ -36,8 +39,16 @@ export function AnalyticsPageClient() {
         const headers = await getFirebaseAuthHeader();
         const analytics = await fetchAnalytics(days, headers);
         setData({
-          categoryStock: analytics.categoryStock,
-          topConsumed: analytics.topConsumed,
+          summary: analytics.summary ?? {
+            unitsSold: 0,
+            unitsReceived: 0,
+            salesAmount: 0,
+            profit: 0,
+          },
+          categoryProfit: analytics.categoryProfit ?? [],
+          recentStockIn: analytics.recentStockIn ?? [],
+          deadStock: analytics.deadStock ?? [],
+          topItems: analytics.topItems ?? [],
           userActivity: analytics.userActivity ?? { users: [], points: [] },
         });
       } catch (error) {
@@ -71,8 +82,11 @@ export function AnalyticsPageClient() {
         />
       ) : (
         <AnalyticsCharts
-          categoryStock={data.categoryStock}
-          topConsumed={data.topConsumed}
+          summary={data.summary}
+          categoryProfit={data.categoryProfit}
+          recentStockIn={data.recentStockIn}
+          deadStock={data.deadStock}
+          topItems={data.topItems}
         />
       )}
 

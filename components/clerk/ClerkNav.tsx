@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { signOutFirebase } from "@/lib/auth/firebase-client";
 import { portalLogout } from "@/lib/auth/portal-client";
+import { isUidAllowed } from "@/lib/auth/roles";
 import { useFirebaseAuth } from "@/lib/auth/use-firebase-auth";
 import { ResponsiveNav } from "@/components/layout/ResponsiveNav";
 
-const links = [
+const staffLinks = [
   { href: "/clerk/closing-stock", label: "Closing Stock" },
   { href: "/clerk/recent-closes", label: "Recent close" },
   { href: "/clerk/stock-in", label: "Stock In" },
@@ -16,6 +17,10 @@ const links = [
 export function ClerkNav() {
   const router = useRouter();
   const { user } = useFirebaseAuth();
+  const isAdmin = isUidAllowed(user?.uid, "admin");
+  const links = isAdmin
+    ? [...staffLinks, { href: "/admin/dashboard", label: "Back to admin" }]
+    : staffLinks;
 
   async function handleSignOut() {
     await portalLogout();
